@@ -1,0 +1,29 @@
+version: '3'
+services:
+  notary:
+    volumes:
+    - /root/cordapp-shared-library/build/nodes/Notary:/opt/corda
+    environment:
+    - ACCEPT_LICENSE=YES
+    ports:
+    - 10003
+    - "2222:2222"
+    image: mycorda-arm
+  school-abc:
+    volumes:
+    - /root/cordapp-shared-library/build/nodes/SchoolABC:/opt/corda
+    environment:
+    - ACCEPT_LICENSE=YES
+    ports:
+    - 10006
+    - "2223:2223"
+    image: mycorda-arm
+  school-xyz:
+    volumes:
+    - /root/cordapp-shared-library/build/nodes/SchoolXYZ:/opt/corda
+    environment:
+    - ACCEPT_LICENSE=YES
+    ports:
+    - 10009
+    - "2224:2224"
+    image: mycorda-arm
