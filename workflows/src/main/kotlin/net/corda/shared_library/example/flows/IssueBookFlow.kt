@@ -12,6 +12,7 @@ import net.corda.core.utilities.ProgressTracker
 import net.corda.core.utilities.ProgressTracker.Step
 import net.corda.shared_library.example.contracts.BookContract
 import net.corda.shared_library.example.states.BookState
+import net.corda.shared_library.example.states.BookRequest
 
 
 /**
@@ -28,7 +29,7 @@ import net.corda.shared_library.example.states.BookState
 object IssueBookFlow {
     @InitiatingFlow
     @StartableByRPC
-    class Initiator(val title: String, val author: String, val ISBN: String, val claims: List<Claim> = listOf(),) : FlowLogic<SignedTransaction>() {
+    class Initiator(val title: String, val author: String, val ISBN: String, val entitleParties: List<Party>) : FlowLogic<SignedTransaction>() {
         /**
          * The progress tracker checkpoints each stage of the flow and outputs the specified messages when each
          * checkpoint is reached in the code. See the 'progressTracker.currentStep' expressions within the call() function.
@@ -76,8 +77,7 @@ object IssueBookFlow {
             progressTracker.currentStep = GENERATING_TRANSACTION
             // Generate an unsigned transaction.
             val myschool = serviceHub.myInfo.legalIdentities.first() 
-            val bookState = BookState(title,author,ISBN,0 // status=0 means available for borrow
-                                       ,myschool,myschool)
+            val bookState = BookState(title,author,ISBN,false ,myschool,myschool,null,null,entitleParties)
             val txCommand = Command(BookContract.Commands.Create(), bookState.participants.map { it.owningKey })
             val txBuilder = TransactionBuilder(notary)
                     .addOutputState(bookState, BookContract.ID)
@@ -91,19 +91,36 @@ object IssueBookFlow {
             // Stage 3.
             progressTracker.currentStep = SIGNING_TRANSACTION
             // Sign the transaction.
-            val fullySignedTx = serviceHub.signInitialTransaction(txBuilder)
+            val partSignedTx = serviceHub.signInitialTransaction(txBuilder)
 
             // Stage 4.
             progressTracker.currentStep = GATHERING_SIGS
             // Send the state to the counterparty, and receive it back with their signature.
-            //val otherPartySession = initiateFlow(otherParty)
-            //val fullySignedTx = subFlow(CollectSignaturesFlow(partSignedTx, setOf(otherPartySession), GATHERING_SIGS.childProgressTracker()))
+            val otherPartySessionList = entitleParties.map { initiateFlow(it) }
+            val fullySignedTx = subFlow(CollectSignaturesFlow(partSignedTx, otherPartySessionList, GATHERING_SIGS.childProgressTracker()))
 
             // Stage 5.
             progressTracker.currentStep = FINALISING_TRANSACTION
             // Notarise and record the transaction in both parties' vaults.
-            return subFlow(FinalityFlow(fullySignedTx, setOf<Party>(), FINALISING_TRANSACTION.childProgressTracker()))
+            return subFlow(FinalityFlow(fullySignedTx, otherPartySessionList, FINALISING_TRANSACTION.childProgressTracker()))
         }
     }
 
+    @InitiatedBy(Initiator::class)
+    class Acceptor(val otherPartySession: FlowSession) : FlowLogic<SignedTransaction>() {
+        @Suspendable
+        override fun call(): SignedTransaction {
+            val signTransactionFlow = object : SignTransactionFlow(otherPartySession) {
+                override fun checkTransaction(stx: SignedTransaction) = requireThat {
+                    val output = stx.tx.outputs.single().data
+                    "This must be an Book transaction." using (output is BookState)
+                    val book = output as BookState
+                    //"I won't accept Books with a value over 100." using (iou.value <= 100)
+                }
+            }
+            val txId = subFlow(signTransactionFlow).id
+
+            return subFlow(ReceiveFinalityFlow(otherPartySession, expectedTxId = txId))
+        }
+    }
 }
