@@ -1,6 +1,11 @@
 .gradle
 /build/
-
+.idea/
+LICENCE
+TRADEMARK
+gradle/
+gradlew
+logs/
 # Ignore Gradle GUI config
 gradle-app.setting
 
