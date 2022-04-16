@@ -33,7 +33,7 @@ data class BookState(val title: String,
                     val entitleParties: List<Party> ,
                     val requestQueue: List<BookRequest> = listOf(),
                     override val linearId: UniqueIdentifier = UniqueIdentifier(),
-                    override val participants: List<AbstractParty> = listof(owner) + entitleParties ):
+                    override val participants: List<AbstractParty> = listOf(owner) + entitleParties ):
         LinearState, QueryableState {
 
     override fun generateMappedObject(schema: MappedSchema): PersistentState {

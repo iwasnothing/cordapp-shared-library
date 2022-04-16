@@ -29,14 +29,15 @@ object StudentSchemaV1 : MappedSchema(
     @Entity
     @Table(name = "student_states")
     class PersistentStudent(
-            @Column(name = "school")
-            var school: String,
 
             @Column(name = "fullname")
             var fullname: String,
 
-            @Column(name = "studentId")
+            @Column(name = "student_id")
             var studentId: String,
+
+            @Column(name = "school")
+            var school: String,
 
             @Column(name = "mobile")
             var mobile: String,

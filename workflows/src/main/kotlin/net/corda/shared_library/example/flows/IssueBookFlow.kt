@@ -114,7 +114,7 @@ object IssueBookFlow {
                 override fun checkTransaction(stx: SignedTransaction) = requireThat {
                     val output = stx.tx.outputs.single().data
                     "This must be an Book transaction." using (output is BookState)
-                    val book = output as BookState
+                    //val book = output as BookState
                     //"I won't accept Books with a value over 100." using (iou.value <= 100)
                 }
             }

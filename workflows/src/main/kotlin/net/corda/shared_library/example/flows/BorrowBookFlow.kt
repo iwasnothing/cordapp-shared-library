@@ -7,11 +7,12 @@ import net.corda.core.contracts.Command
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
 import net.corda.core.identity.Party
+import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
 import net.corda.core.utilities.ProgressTracker.Step
-import net.corda.shared_library.example.contracts.BookContract
+import net.corda.shared_library.example.contracts.BorrowBookContract
 import net.corda.shared_library.example.states.BookState
 import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.QueryCriteria
@@ -31,7 +32,7 @@ import net.corda.core.node.services.vault.QueryCriteria
 object BorrowBookFlow {
     @InitiatingFlow
     @StartableByRPC
-    class Initiator(val bookId: UniqueIdentifier ) : FlowLogic<SignedTransaction>() {
+    class Initiator(val bookUUID: UniqueIdentifier ) : FlowLogic<SignedTransaction>() {
         /**
          * The progress tracker checkpoints each stage of the flow and outputs the specified messages when each
          * checkpoint is reached in the code. See the 'progressTracker.currentStep' expressions within the call() function.
@@ -79,28 +80,24 @@ object BorrowBookFlow {
             progressTracker.currentStep = GENERATING_TRANSACTION
             // Generate an unsigned transaction.
             // search the input.
-            //val inputCriteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(bookId))
-            //val inputStateAndRef = serviceHub.vaultService.queryBy<ProposalState>(inputCriteria).states.single()
-            //val input = inputStateAndRef.state.data
-            val BooksStateAndRefs = serviceHub.vaultService.queryBy(BookState::class.java).states
-            val inputStateAndRef = landTitleStateAndRefs.stream().filter{ it.state.data.linearId == bookId }
-                .findAny().orElseThrow{IllegalArgumentException("Book Not Found")}
-            val inputState = inputStateAndRef.state.data
+            val inputCriteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(bookUUID))
+            val inputStateAndRef = serviceHub.vaultService.queryBy<BookState>(inputCriteria).states.single()
+            val input = inputStateAndRef.state.data
+            //val BooksStateAndRefs = serviceHub.vaultService.queryBy(BookState::class.java).states
+            //val inputStateAndRef = landTitleStateAndRefs.stream().filter{ it.state.data.linearId == bookUUID }
+                //.findAny().orElseThrow{IllegalArgumentException("Book Not Found")}
+            //val inputState = inputStateAndRef.state.data
    
             // Creating the output.
-            // val myschool = serviceHub.myInfo.legalIdentities.first()
-            val output = input.copy(title = input.title, author=input.title, ISBN=input.ISBN owner=outIdentity, status=1, holder = borrowParty)
+            val myschool = serviceHub.myInfo.legalIdentities.first()
+            val output = input.copy(isBorrowed=true, holder = myschool)
 
             // Creating the command.
-            val requiredSigners = listOf(ourIdentity.owningKey,borrowParty.owningKey)
-            val txCommand = Command(BorrowBookContract.Commands.Borrow(), listOf(inputState.issuer.owningKey,inputState.owner.owningKey))
+            val txCommand = Command(BorrowBookContract.Commands.Borrow(), output.participants.map { it.owningKey })
             val txBuilder = TransactionBuilder(notary)
-                    .addOutputState(bookState, BookContract.ID)
+                    .addInputState(inputStateAndRef)
+                    .addOutputState(output)
                     .addCommand(txCommand)
-        val builder = TransactionBuilder(notary)
-                .addInputState(inputStateAndRef)
-                .addOutputState(outputState)
-                .addCommand(LandTitleContract.Commands.Transfer(), listOf(inputState.issuer.owningKey,inputState.owner.owningKey))
 
             // Stage 2.
             progressTracker.currentStep = VERIFYING_TRANSACTION
@@ -115,13 +112,14 @@ object BorrowBookFlow {
             // Stage 4.
             progressTracker.currentStep = GATHERING_SIGS
             // Send the state to the counterparty, and receive it back with their signature.
-            val otherPartySession = initiateFlow(otherParty)
-            val fullySignedTx = subFlow(CollectSignaturesFlow(partSignedTx, setOf(otherPartySession), GATHERING_SIGS.childProgressTracker()))
+            //val otherPartySession = initiateFlow(otherParty)
+            val otherPartySessionList = output.participants.filter{it.owningKey != myschool.owningKey}.map { initiateFlow(it) }
+            val fullySignedTx = subFlow(CollectSignaturesFlow(partSignedTx, otherPartySessionList, GATHERING_SIGS.childProgressTracker()))
 
             // Stage 5.
             progressTracker.currentStep = FINALISING_TRANSACTION
             // Notarise and record the transaction in both parties' vaults.
-            return subFlow(FinalityFlow(fullySignedTx, setOf(otherPartySession), FINALISING_TRANSACTION.childProgressTracker()))
+            return subFlow(FinalityFlow(fullySignedTx, otherPartySessionList, FINALISING_TRANSACTION.childProgressTracker()))
         }
     }
 
@@ -133,8 +131,7 @@ object BorrowBookFlow {
                 override fun checkTransaction(stx: SignedTransaction) = requireThat {
                     val output = stx.tx.outputs.single().data
                     "This must be an Book transaction." using (output is BookState)
-                    val iou = output as BookState
-                    "I won't accept Books with a value over 100." using (iou.value <= 100)
+                    //val book = output as BookState
                 }
             }
             val txId = subFlow(signTransactionFlow).id

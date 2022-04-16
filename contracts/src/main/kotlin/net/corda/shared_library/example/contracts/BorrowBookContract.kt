@@ -30,7 +30,7 @@ class BorrowBookContract : Contract {
      * considered valid.
      */
     override fun verify(tx: LedgerTransaction) {
-        val command = tx.commands.requireSingleCommand<Commands.Create>()
+        val command = tx.commands.requireSingleCommand<Commands.Borrow>()
         requireThat {
             // Generic constraints around the Book transaction.
             "Only one input state should be created." using (tx.inputs.size == 1)
