@@ -31,7 +31,7 @@ data class BookState(val title: String,
                     val notification: UniqueIdentifier?,
                     val borrowDate: String?,
                     val entitleParties: List<Party> ,
-                    val requestQueue: List<BookRequest> = listOf(),
+                    val requestQueue: List<BookRequest> = listOf<BookRequest>(),
                     override val linearId: UniqueIdentifier = UniqueIdentifier(),
                     override val participants: List<AbstractParty> = listOf(owner) + entitleParties ):
         LinearState, QueryableState {

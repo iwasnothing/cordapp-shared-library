@@ -10,9 +10,11 @@
             <column name="title" type="NVARCHAR(256)"/>
             <column name="author" type="NVARCHAR(256)"/>
             <column name="ISBN" type="NVARCHAR(256)"/>
-            <column name="status" type="INT"/>
+            <column name="isBorrowed" type="Bool"/>
+            <column name="borrowDate" type="NVARCHAR(64)"/>
             <column name="owner" type="NVARCHAR(64)"/>
             <column name="holder" type="NVARCHAR(64)"/>
+            <column name="notification" type="NVARCHAR(64)"/>
             <column name="linear_id" type="NVARCHAR(64)"/>
         </createTable>
     </changeSet>

@@ -1,8 +1,8 @@
 package net.corda.shared_library.example.flows
 
 import co.paralleluniverse.fibers.Suspendable
-import net.corda.shared_library.example.flows.BorrowBookFlow.Acceptor
-import net.corda.shared_library.example.flows.BorrowBookFlow.Initiator
+import net.corda.shared_library.example.flows.AddRequestFlow.Acceptor
+import net.corda.shared_library.example.flows.AddRequestFlow.Initiator
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
@@ -14,10 +14,13 @@ import net.corda.core.utilities.ProgressTracker
 import net.corda.core.utilities.ProgressTracker.Step
 import net.corda.shared_library.example.contracts.BookContract
 import net.corda.shared_library.example.states.BookState
+import net.corda.shared_library.example.states.BookRequest
+import net.corda.shared_library.example.states.StudentState
 import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.QueryCriteria
 import java.time.format.DateTimeFormatter
 import java.time.Instant
+
 
 /**
  * This flow allows two parties (the [Initiator] and the [Acceptor]) to come to an agreement about the Book encapsulated
@@ -30,10 +33,10 @@ import java.time.Instant
  *
  * All methods called within the [FlowLogic] sub-class need to be annotated with the @Suspendable annotation.
  */
-object BorrowBookFlow {
+object AddRequestFlow {
     @InitiatingFlow
     @StartableByRPC
-    class Initiator(val bookUUID: UniqueIdentifier ) : FlowLogic<SignedTransaction>() {
+    class Initiator(val bookUUID: UniqueIdentifier, val studentUUID: UniqueIdentifier ) : FlowLogic<SignedTransaction>() {
         /**
          * The progress tracker checkpoints each stage of the flow and outputs the specified messages when each
          * checkpoint is reached in the code. See the 'progressTracker.currentStep' expressions within the call() function.
@@ -81,21 +84,28 @@ object BorrowBookFlow {
             progressTracker.currentStep = GENERATING_TRANSACTION
             // Generate an unsigned transaction.
             // search the input.
+            val studentCriteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(studentUUID))
+            val studentStateAndRef = serviceHub.vaultService.queryBy<StudentState>(studentCriteria).states.single()
+            val student = studentStateAndRef.state.data
+            requireThat { "Student not found" using (student.linearId == studentUUID)}
             val inputCriteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(bookUUID))
             val inputStateAndRef = serviceHub.vaultService.queryBy<BookState>(inputCriteria).states.single()
             val input = inputStateAndRef.state.data
+            requireThat { "requester not entitled" using (ourIdentity in input.entitleParties)}
             //val BooksStateAndRefs = serviceHub.vaultService.queryBy(BookState::class.java).states
             //val inputStateAndRef = landTitleStateAndRefs.stream().filter{ it.state.data.linearId == bookUUID }
                 //.findAny().orElseThrow{IllegalArgumentException("Book Not Found")}
             //val inputState = inputStateAndRef.state.data
    
             // Creating the output.
-            val ts = DateTimeFormatter.ISO_INSTANT.format(Instant.now()).toString()
             val myschool = serviceHub.myInfo.legalIdentities.first()
-            val output = input.copy(isBorrowed=true, holder = myschool, borrowDate=ts)
+            val ts = DateTimeFormatter.ISO_INSTANT.format(Instant.now()).toString()
+            val req = BookRequest(bookUUID , myschool, studentUUID ,  ts)
+            val newList = input.requestQueue + listOf(req)
+            val output = input.copy(requestQueue = newList)
 
             // Creating the command.
-            val txCommand = Command(BookContract.Commands.Borrow(), output.participants.map { it.owningKey })
+            val txCommand = Command(BookContract.Commands.AddRequest(), output.participants.map { it.owningKey })
             val txBuilder = TransactionBuilder(notary)
                     .addInputState(inputStateAndRef)
                     .addOutputState(output)

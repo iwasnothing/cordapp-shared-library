@@ -4,17 +4,14 @@
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.5.xsd">
     <changeSet author="R3.Corda" id="create_book_state">
-        <createTable tableName="book_states">
+        <createTable tableName="student_states">
             <column name="output_index" type="INT"/>
             <column name="transaction_id" type="NVARCHAR(64)"/>
-            <column name="title" type="NVARCHAR(256)"/>
-            <column name="author" type="NVARCHAR(256)"/>
-            <column name="ISBN" type="NVARCHAR(256)"/>
-            <column name="isBorrowed" type="Bool"/>
-            <column name="borrowDate" type="NVARCHAR(64)"/>
-            <column name="owner" type="NVARCHAR(64)"/>
-            <column name="holder" type="NVARCHAR(64)"/>
-            <column name="notification" type="NVARCHAR(64)"/>
+            <column name="fullname" type="NVARCHAR(256)"/>
+            <column name="student_id" type="NVARCHAR(256)"/>
+            <column name="school" type="NVARCHAR(256)"/>
+            <column name="mobile" type="NVARCHAR(64)"/>
+            <column name="email" type="NVARCHAR(64)"/>
             <column name="linear_id" type="NVARCHAR(64)"/>
         </createTable>
     </changeSet>

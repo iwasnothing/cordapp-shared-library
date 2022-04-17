@@ -27,3 +27,13 @@ services:
     - 10009
     - "2224:2224"
     image: mycorda-arm
+  school-ijk:
+    volumes:
+    - /root/cordapp-shared-library/build/nodes/SchoolIJK:/opt/corda
+    environment:
+    - ACCEPT_LICENSE=YES
+    ports:
+    - 10012
+    - "2225:2225"
+    image: mycorda-arm
+

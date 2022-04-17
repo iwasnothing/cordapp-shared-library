@@ -1,8 +1,8 @@
 package net.corda.shared_library.example.flows
 
 import co.paralleluniverse.fibers.Suspendable
-import net.corda.shared_library.example.flows.BorrowBookFlow.Acceptor
-import net.corda.shared_library.example.flows.BorrowBookFlow.Initiator
+import net.corda.shared_library.example.flows.ReturnBookFlow.Acceptor
+import net.corda.shared_library.example.flows.ReturnBookFlow.Initiator
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
@@ -14,10 +14,12 @@ import net.corda.core.utilities.ProgressTracker
 import net.corda.core.utilities.ProgressTracker.Step
 import net.corda.shared_library.example.contracts.BookContract
 import net.corda.shared_library.example.states.BookState
+import net.corda.shared_library.example.states.BookRequest
 import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.QueryCriteria
 import java.time.format.DateTimeFormatter
 import java.time.Instant
+import org.slf4j.LoggerFactory
 
 /**
  * This flow allows two parties (the [Initiator] and the [Acceptor]) to come to an agreement about the Book encapsulated
@@ -30,7 +32,7 @@ import java.time.Instant
  *
  * All methods called within the [FlowLogic] sub-class need to be annotated with the @Suspendable annotation.
  */
-object BorrowBookFlow {
+object ReturnBookFlow {
     @InitiatingFlow
     @StartableByRPC
     class Initiator(val bookUUID: UniqueIdentifier ) : FlowLogic<SignedTransaction>() {
@@ -74,6 +76,7 @@ object BorrowBookFlow {
              *
              *  * - For production you always want to use Method 2 as it guarantees the expected notary is returned.
              */
+            val logger = LoggerFactory.getLogger("net.corda")
             val notary = serviceHub.networkMapCache.notaryIdentities.single() // METHOD 1
             // val notary = serviceHub.networkMapCache.getNotary(CordaX500Name.parse("O=Notary,L=London,C=GB")) // METHOD 2
 
@@ -84,18 +87,29 @@ object BorrowBookFlow {
             val inputCriteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(bookUUID))
             val inputStateAndRef = serviceHub.vaultService.queryBy<BookState>(inputCriteria).states.single()
             val input = inputStateAndRef.state.data
+            logger.info("verifying the book holder ${ourIdentity} == ${input.holder}")
+            requireThat { "Only Book Holder can return the book " using (ourIdentity == input.holder) }
+
             //val BooksStateAndRefs = serviceHub.vaultService.queryBy(BookState::class.java).states
             //val inputStateAndRef = landTitleStateAndRefs.stream().filter{ it.state.data.linearId == bookUUID }
                 //.findAny().orElseThrow{IllegalArgumentException("Book Not Found")}
             //val inputState = inputStateAndRef.state.data
    
             // Creating the output.
-            val ts = DateTimeFormatter.ISO_INSTANT.format(Instant.now()).toString()
             val myschool = serviceHub.myInfo.legalIdentities.first()
-            val output = input.copy(isBorrowed=true, holder = myschool, borrowDate=ts)
+            var output: BookState = input.copy()
+            if (input.requestQueue.size > 0) {
+                    val ts = DateTimeFormatter.ISO_INSTANT.format(Instant.now()).toString()
+                    val mlist: MutableList<BookRequest> = input.requestQueue.toMutableList()
+                    val head = mlist.removeAt(0)
+                    output = input.copy(isBorrowed=true, holder = head.requester, notification=head.studentUUID,borrowDate=ts, requestQueue=mlist)
+            }
+            else {
+                    output = input.copy(isBorrowed=false, holder = input.owner, notification=null ,borrowDate=null, requestQueue=listOf<BookRequest>() )
+            }
 
             // Creating the command.
-            val txCommand = Command(BookContract.Commands.Borrow(), output.participants.map { it.owningKey })
+            val txCommand = Command(BookContract.Commands.Return(), output.participants.map { it.owningKey })
             val txBuilder = TransactionBuilder(notary)
                     .addInputState(inputStateAndRef)
                     .addOutputState(output)
