@@ -4,7 +4,6 @@
 LICENCE
 TRADEMARK
 gradle/
-gradlew
 logs/
 # Ignore Gradle GUI config
 gradle-app.setting
